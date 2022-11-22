@@ -64,7 +64,11 @@ pub async fn sleep(dur: Duration) {
 /// Sleeps until the given Instant.
 pub async fn until(i: Instant) {
     Lazy::force(&WAKER);
+    futures_lite::future::yield_now().await;
     let epoch = instant_to_epoch(i);
+    if instant_to_epoch(Instant::now()) >= epoch {
+        return;
+    }
     let qe = {
         loop {
             let q = EVENT_QUEUE.upgradable_read();
