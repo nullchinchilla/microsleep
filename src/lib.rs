@@ -82,7 +82,7 @@ pub async fn until(i: Instant) {
                 });
 
                 q.insert(epoch, Arc::downgrade(&qe));
-                // WAKER.thread().unpark();
+                WAKER.thread().unpark();
                 break qe;
             }
         }
