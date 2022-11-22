@@ -57,11 +57,7 @@ static WAKER: Lazy<JoinHandle<()>> = Lazy::new(|| {
                 }
                 cue.keys().next().copied()
             };
-            if let Some(first_time) = first_time {
-                spin_sleep::native_sleep(Duration::from_millis(1));
-            } else {
-                std::thread::park();
-            }
+            spin_sleep::native_sleep(Duration::from_millis(1));
         })
         .unwrap()
 });
@@ -86,7 +82,7 @@ pub async fn until(i: Instant) {
                 });
 
                 q.insert(epoch, Arc::downgrade(&qe));
-                WAKER.thread().unpark();
+                // WAKER.thread().unpark();
                 break qe;
             }
         }
