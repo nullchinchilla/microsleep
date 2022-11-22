@@ -1,6 +1,6 @@
 [package]
 name = "microsleep"
-version = "0.1.10"
+version = "0.1.11"
 edition = "2021"
 description="high performance async sleep for massive numbers of timers"
 license="ISC"
