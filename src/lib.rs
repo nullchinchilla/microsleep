@@ -60,10 +60,6 @@ static WAKER: Lazy<JoinHandle<()>> = Lazy::new(|| {
             if let Some(first_time) = first_time {
                 if first_time.saturating_sub(instant_to_epoch(now)) < 20 {
                     spin_sleep::native_sleep(Duration::from_millis(1));
-                } else {
-                    std::thread::park_timeout(Duration::from_millis(
-                        first_time.saturating_sub(instant_to_epoch(now)),
-                    ))
                 }
             } else {
                 std::thread::park();
