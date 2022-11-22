@@ -65,6 +65,8 @@ static WAKER: Lazy<JoinHandle<()>> = Lazy::new(|| {
                         first_time.saturating_sub(instant_to_epoch(now)),
                     ))
                 }
+            } else {
+                std::thread::park();
             }
         })
         .unwrap()
