@@ -26,14 +26,8 @@ struct QueueEntry {
     event: ManualResetEvent,
 }
 
-impl Drop for QueueEntry {
-    fn drop(&mut self) {
-        EVENT_QUEUE.write().remove(&self.key);
-    }
-}
-
 /// A mapping between epochs to their wakeup event
-static EVENT_QUEUE: Lazy<RwLock<BTreeMap<u64, Weak<QueueEntry>>>> = Lazy::new(Default::default);
+static EVENT_QUEUE: Lazy<RwLock<BTreeMap<u64, Arc<QueueEntry>>>> = Lazy::new(Default::default);
 
 static WAKER: Lazy<JoinHandle<()>> = Lazy::new(|| {
     std::thread::Builder::new()
@@ -46,9 +40,8 @@ static WAKER: Lazy<JoinHandle<()>> = Lazy::new(|| {
             let mut to_rem: SmallVec<[u64; 32]> = SmallVec::new();
             for (&epoch, evt) in cue.iter() {
                 if epoch <= now {
-                    if let Some(evt) = evt.upgrade() {
-                        evt.event.set();
-                    }
+                    evt.event.set();
+
                     to_rem.push(epoch);
                 } else {
                     break;
@@ -74,7 +67,7 @@ pub async fn until(i: Instant) {
     let qe = {
         loop {
             let q = EVENT_QUEUE.upgradable_read();
-            if let Some(v) = q.get(&epoch).and_then(|v| v.upgrade()) {
+            if let Some(v) = q.get(&epoch).map(|v| v.clone()) {
                 break v;
             } else if let Ok(mut q) = RwLockUpgradableReadGuard::try_upgrade(q) {
                 let qe = Arc::new(QueueEntry {
@@ -82,7 +75,7 @@ pub async fn until(i: Instant) {
                     event: ManualResetEvent::new(false),
                 });
 
-                q.insert(epoch, Arc::downgrade(&qe));
+                q.insert(epoch, qe.clone());
                 WAKER.thread().unpark();
                 break qe;
             }
