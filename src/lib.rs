@@ -63,6 +63,7 @@ pub async fn sleep(dur: Duration) {
 
 /// Sleeps until the given Instant.
 pub async fn until(i: Instant) {
+    Lazy::force(&WAKER);
     let epoch = instant_to_epoch(i);
     let qe = {
         loop {
