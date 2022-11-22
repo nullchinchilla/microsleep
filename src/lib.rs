@@ -41,22 +41,23 @@ static WAKER: Lazy<JoinHandle<()>> = Lazy::new(|| {
         .spawn(|| loop {
             let now = Instant::now();
             // first fire off for any things that are already expired
-            let first_time = {
-                let mut cue = EVENT_QUEUE.write();
-                let now = instant_to_epoch(now);
-                let to_rem: SmallVec<[u64; 32]> = SmallVec::new();
-                for (&epoch, evt) in cue.iter() {
-                    if epoch <= now {
-                        if let Some(evt) = evt.upgrade() {
-                            evt.event.set();
-                        }
+            let mut cue = EVENT_QUEUE.write();
+            let now = instant_to_epoch(now);
+            let mut to_rem: SmallVec<[u64; 32]> = SmallVec::new();
+            for (&epoch, evt) in cue.iter() {
+                if epoch <= now {
+                    if let Some(evt) = evt.upgrade() {
+                        evt.event.set();
                     }
+                    to_rem.push(epoch);
+                } else {
+                    break;
                 }
-                for r in to_rem {
-                    cue.remove(&r);
-                }
-                cue.keys().next().copied()
-            };
+            }
+            for r in to_rem {
+                cue.remove(&r);
+            }
+
             spin_sleep::native_sleep(Duration::from_millis(1));
         })
         .unwrap()
