@@ -3,7 +3,7 @@ use futures_intrusive::sync::ManualResetEvent;
 use parking_lot::RwLock;
 use priority_queue::PriorityQueue;
 use slab::Slab;
-use std::{collections::HashMap, sync::Arc};
+use std::{cmp::Reverse, collections::HashMap, sync::Arc};
 
 #[derive(Default)]
 pub struct TimeHeap {
@@ -23,7 +23,7 @@ impl TimeHeap {
         // okay now we use a write lock
         {
             let mut inner = self.inner.write();
-            let pre_first = inner.evt_to_tick.peek().map(|v| v.1).copied();
+            let pre_first = inner.lowest();
             // repeat the code above because something might have changed by now
             if let Some(&evt_idx) = inner.tick_to_evt.get(&tick) {
                 return inner.events[evt_idx].clone();
@@ -31,7 +31,7 @@ impl TimeHeap {
             let evt = Arc::new(ManualResetEvent::new(false));
             let evt_idx = inner.events.insert(evt.clone());
             inner.tick_to_evt.insert(tick, evt_idx);
-            inner.evt_to_tick.push(evt_idx, tick);
+            inner.evt_to_tick.push(evt_idx, Reverse(tick));
             // if the first tick changed, notify the waker
             let post_first = inner.lowest();
             if pre_first != post_first {
@@ -55,10 +55,11 @@ impl TimeHeap {
     pub fn fire_before(&self, tick: u64) {
         let mut inner = self.inner.write();
         while let Some((evt_id, evt_tick)) = inner.evt_to_tick.pop() {
-            if evt_tick > tick {
+            if evt_tick.0 > tick {
                 inner.evt_to_tick.push(evt_id, evt_tick);
                 break;
             }
+            log::trace!("firing evt_id={evt_id}, evt_tick={}", evt_tick.0);
             inner.events.remove(evt_id).set();
             inner.tick_to_evt.remove(&tick);
         }
@@ -68,12 +69,12 @@ impl TimeHeap {
 #[derive(Default)]
 pub struct Inner {
     events: Slab<Arc<ManualResetEvent>>,
-    evt_to_tick: PriorityQueue<usize, u64>,
+    evt_to_tick: PriorityQueue<usize, Reverse<u64>>,
     tick_to_evt: HashMap<u64, usize>,
 }
 
 impl Inner {
     fn lowest(&self) -> Option<u64> {
-        self.evt_to_tick.peek().map(|v| v.1).copied()
+        self.evt_to_tick.peek().map(|v| v.1).map(|s| s.0)
     }
 }
