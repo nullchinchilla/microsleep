@@ -35,9 +35,13 @@ static WAKER: Lazy<JoinHandle<()>> = Lazy::new(|| {
                 if earliest.saturating_sub(now) > 50 {
                     // if long in the future, we wait
                     let wait = EVENT_QUEUE.wait_until_change();
-                    let earliest = EVENT_QUEUE.earliest_tick().unwrap_or(u64::MAX);
+                    let earliest = EVENT_QUEUE.earliest_tick();
                     let timer = async move {
-                        async_io::Timer::at(epoch_to_instant(earliest)).await;
+                        if let Some(earliest) = earliest {
+                            async_io::Timer::at(epoch_to_instant(earliest)).await;
+                        } else {
+                            futures_lite::future::pending().await
+                        }
                     };
                     futures_lite::future::block_on(timer.race(wait));
                 } else {
